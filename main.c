@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <string.h>
+#include <time.h> 
 
 struct Creature {
   int alive;
@@ -44,7 +45,7 @@ void printMap(struct Creature* creatures, int width, int height) {
   for(int x=0;x<width;x++) {
     printf("x");
     for(int y=0;y<height;y++) {
-      printf("%d", creatures[coordinatesToIndex(width, x,y)].alive);
+      printf("%c", creatures[coordinatesToIndex(width, x,y)].alive ? '0' : ' ');
     }
     printf("x\n");
   }
@@ -110,31 +111,52 @@ int main(int argc, char* argv[]) {
       int y=0;
       int x_set = 0;
       int y_set = 0;
-			for(int i = 0; i<len;i++) {
-			  if (isdigit(line[i])) {
-          buffer[cursor++] = line[i];
-        } else {
-          buffer[cursor] = 0x00;
-          cursor=0;
-          if (!x_set) {
-            x = atoi(buffer);
-            x_set = 1;
-          } else if (!y_set) {
-            y = atoi(buffer);
-            y_set = 1;
-          } else {
-            printf("INVALID INPUT 1\n");
-            memset(buffer, 0, len);
+      if (line[0] == 'r' || line[0] == 'R') {
+        time_t seed;
+        time(&seed);
+        srand(seed);
+        for(int x=0;x<width;x++) {
+          for(int y=0;y<height;y++) {
+            creatures[coordinatesToIndex(width, x,y)].alive = (rand() < (RAND_MAX/2) ? 0 : 1);
           }
         }
-			}
-      if (x_set && y_set && x<width && y<height) {
-        struct Creature* creatureAtField = &creatures[coordinatesToIndex(width, x, y)];
-        (*creatureAtField).alive = (*creatureAtField).alive ? 0 : 1;
-        printMap(creatures, width, height);
       } else {
-        printf("INVALID INPUT 2: x:%d, y:%d, w:%d, h:%d\n", x, y, width, height);
+        for(int i = 0; i<len;i++) {
+          if (isdigit(line[i])) {
+            buffer[cursor++] = line[i];
+          } else {
+            buffer[cursor] = 0x00;
+            cursor=0;
+            if (!x_set) {
+              if (strlen(buffer) > 0) {
+                x = atoi(buffer);
+                x_set = 1;
+              } else {
+                printf("INVALID INPUT X\n");
+                break;
+              }
+            } else if (!y_set) {
+              if (strlen(buffer) > 0) {
+                y = atoi(buffer);
+                y_set = 1;
+              } else {
+                printf("INVALID INPUT Y\n");
+                break;
+              }
+            } else {
+              printf("INVALID INPUT 1\n");
+              memset(buffer, 0, len);
+            }
+          }
+        }
+        if (x_set && y_set && x<width && y<height) {
+          struct Creature* creatureAtField = &creatures[coordinatesToIndex(width, x, y)];
+          (*creatureAtField).alive = (*creatureAtField).alive ? 0 : 1;
+        } else {
+          printf("INVALID INPUT 2: x:%d, y:%d, w:%d, h:%d\n", x, y, width, height);
+        }
       }
+      printMap(creatures, width, height);
 		} else {
       printf("Line was empty\n");
 			lineWasEmpty = 1;
@@ -146,7 +168,7 @@ int main(int argc, char* argv[]) {
     for(int x=0;x<width;x++) {
       for(int y=0;y<height;y++) {
         int aliveNeighbors = countAliveNeighbors(creatures, width, height, x, y);
-        int alive = creatures_next[coordinatesToIndex(width, x, y)].alive;
+        int alive = creatures[coordinatesToIndex(width, x, y)].alive;
         if (alive == 0) {
           if (aliveNeighbors == 3) {
             alive = 1;
@@ -161,9 +183,16 @@ int main(int argc, char* argv[]) {
         creatures_next[coordinatesToIndex(width, x, y)].alive = alive;
       }
     }
+    struct Creature* tmp = creatures;
     creatures = creatures_next;
+    creatures_next = tmp;
     printMap(creatures, width, height);
-    getchar();
+    char input = getchar();
+    if (input == 'q' || input == 'Q') {
+      break;
+    }
   }
+  free(creatures);
+  free(creatures_next)
 }
 
