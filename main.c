@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <time.h> 
+#include <ncurses.h> 
 
 struct Creature {
   int alive;
@@ -39,23 +40,15 @@ unsigned int getConsoleInput(char **pStrBfr)
     return i + 1;
 }
 void printMap(struct Map* map) {
-  printf("x");
-  for(int y=0;y<(*map).height;y++) {
-    printf("x");
-  }
-  printf("x\n");
+  char character = ' ';
   for(int x=0;x<(*map).width;x++) {
-    printf("x");
     for(int y=0;y<(*map).height;y++) {
-      printf("%c", (*map).creatures[coordinatesToIndex((*map).width, x,y)].alive ? '0' : ' ');
+      character = (*map).creatures[coordinatesToIndex((*map).width, x,y)].alive ? '#' : ' ';
+      // printf("%d %d %s" , x,y, &character);
+      mvprintw(x,y,&character);
     }
-    printf("x\n");
   }
-  printf("x");
-  for(int y=0;y<(*map).height;y++) {
-    printf("x");
-  }
-  printf("x\n");
+  refresh();
 }
 int countAliveNeighbors(struct Map* map, int x, int y) {
   int count = 0;
@@ -89,12 +82,13 @@ int countAliveNeighbors(struct Map* map, int x, int y) {
   return count;
 }
 int main(int argc, char* argv[]) {
-  if (argc != 3) {
-    printf("required 2 args, %d given\n", argc-1);
-    return 1;
-  }
-  int height = atoi(argv[1]);
-  int width = atoi(argv[2]);
+  initscr();
+  int timeout = 50;
+  int height; 
+  int width;
+  getmaxyx(stdscr, width, height);
+  keypad(stdscr, TRUE);
+  // printf("%d %d", width, height);
   struct Map map;
   map.width = width;
   map.height = height;
@@ -105,71 +99,17 @@ int main(int argc, char* argv[]) {
     }
   }
   printMap(&map);
-  int lineWasEmpty = 0;
-	do {
-		char* line;
-		int len = getConsoleInput(&line);
-    char* buffer = malloc(len);
-		if (len > 1) {
-      int cursor = 0;
-      int x=0;
-      int y=0;
-      int x_set = 0;
-      int y_set = 0;
-      if (line[0] == 'r' || line[0] == 'R') {
-        time_t seed;
-        time(&seed);
-        srand(seed);
-        for(int x=0;x<width;x++) {
-          for(int y=0;y<height;y++) {
-            map.creatures[coordinatesToIndex(width, x,y)].alive = (rand() < (RAND_MAX/3) ? 1 : 2);
-          }
-        }
-      } else {
-        for(int i = 0; i<len;i++) {
-          if (isdigit(line[i])) {
-            buffer[cursor++] = line[i];
-          } else {
-            buffer[cursor] = 0x00;
-            cursor=0;
-            if (!x_set) {
-              if (strlen(buffer) > 0) {
-                x = atoi(buffer);
-                x_set = 1;
-              } else {
-                printf("INVALID INPUT X\n");
-                break;
-              }
-            } else if (!y_set) {
-              if (strlen(buffer) > 0) {
-                y = atoi(buffer);
-                y_set = 1;
-              } else {
-                printf("INVALID INPUT Y\n");
-                break;
-              }
-            } else {
-              printf("INVALID INPUT 1\n");
-              memset(buffer, 0, len);
-            }
-          }
-        }
-        if (x_set && y_set && x<width && y<height) {
-          struct Creature* creatureAtField = &map.creatures[coordinatesToIndex(width, x, y)];
-          (*creatureAtField).alive = (*creatureAtField).alive ? 0 : 1;
-        } else {
-          printf("INVALID INPUT 2: x:%d, y:%d, w:%d, h:%d\n", x, y, width, height);
-        }
-      }
-      printMap(&map);
-		} else {
-      printf("Line was empty\n");
-			lineWasEmpty = 1;
-		}
-    free(buffer);
-	} while(lineWasEmpty == 0);
+  time_t seed;
+  time(&seed);
+  srand(seed);
+  for(int x=0;x<width;x++) {
+    for(int y=0;y<height;y++) {
+      map.creatures[coordinatesToIndex(width, x,y)].alive = (rand() < (RAND_MAX/3) ? 0 : 1);
+    }
+  }
   struct Creature *creatures_next = (struct Creature*)malloc(sizeof(struct Creature) * width * height);
   while(1) {
+    timeout(timeout);
     for(int x=0;x<width;x++) {
       for(int y=0;y<height;y++) {
         int aliveNeighbors = countAliveNeighbors(&map, x, y);
@@ -192,12 +132,22 @@ int main(int argc, char* argv[]) {
     map.creatures = creatures_next;
     creatures_next = tmp;
     printMap(&map);
-    char input = getchar();
+    char input = getch();
+    if (input == KEY_UP) {
+      timeout += 100;
+    }
+    if (input == KEY_DOWN) {
+      if (timeout > 0) {
+        timeout -= 100;
+      }
+    }
     if (input == 'q' || input == 'Q') {
       break;
     }
   }
   free(map.creatures);
   free(creatures_next);
+  endwin();
+  return 0;
 }
 
